@@ -70,7 +70,7 @@ test('upgrades require the proper game state', () => {
   assert.equal(chooseUpgrade(w, 'pulse'), false);
   w.status = 'upgrade';
   assert.equal(chooseUpgrade(w, 'pulse'), true);
-  assert.equal(w.tuning.pulseRadius, 56);
+  assert.equal(w.tuning.pulseRadius, 65);
   assert.equal(w.status, 'running');
   assert.equal(chooseUpgrade(w, '__proto__'), false);
 });

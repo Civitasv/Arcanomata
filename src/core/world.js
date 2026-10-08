@@ -30,7 +30,7 @@ export function spawnSpell(w, kind, x = w.player.x, y = w.player.y, energy = 65)
     id: ++w.nextId, kind, x, y,
     vx: Math.cos(angle) * 27, vy: Math.sin(angle) * 27,
     energy, cooldowns: [0, 0, 0], age: 0, lastRule: '尚未触发',
-    lastTargetId: null, lastTargetType: null, lastActionAt: -1, trace: []
+    lastTargetId: null, lastTargetType: null, lastMovementTraceAt: -1, trace: []
   };
   w.spells.push(spell);
   w.metrics.peakSpells = Math.max(w.metrics.peakSpells, w.spells.length);
@@ -112,8 +112,8 @@ function traceAction(w, spell, rule, index, perception, before) {
   );
   if (cross) w.crossSignals++;
   const activeMovement = ['seek', 'flee', 'orbit'].includes(rule.do);
-  if (activeMovement && w.time - spell.lastActionAt < 0.3) return;
-  spell.lastActionAt = w.time;
+  if (activeMovement && w.time - spell.lastMovementTraceAt < 0.3) return;
+  if (activeMovement) spell.lastMovementTraceAt = w.time;
   const event = {
     t: Number(w.time.toFixed(2)), kind: spell.kind, spellId: spell.id,
     ruleIndex: index, when: rule.when, action: rule.do,
