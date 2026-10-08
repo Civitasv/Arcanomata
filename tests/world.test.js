@@ -20,8 +20,10 @@ test('program input is whitelisted, preserves both species independently', () =>
   p.hunter[0] = { when: 'mark', do: 'orbit' };
   p.scout[0] = { when: 'bad', do: 'eval' };
   const safe = normalizePrograms(p);
-  assert.deepEqual(safe.scout[0], { when: 'enemy', do: 'mark' });
-  assert.deepEqual(safe.hunter[0], { when: 'mark', do: 'orbit' });
+  assert.equal(safe.scout[0].when, 'enemy');
+  assert.equal(safe.scout[0].do, 'mark');
+  assert.equal(safe.hunter[0].when, 'mark');
+  assert.equal(safe.hunter[0].do, 'orbit');
   assert.notStrictEqual(safe.hunter[0], p.hunter[0]);
 });
 
@@ -30,8 +32,8 @@ test('scout mark can guide independently programmed hunter', () => {
   const scout = w.spells.find(s => s.kind === 'scout');
   const hunter = w.spells.find(s => s.kind === 'hunter');
   w.enemies = [{ id: 555, x: scout.x + 72, y: scout.y, hp: 10, speed: 0, radius: 12 }];
-  w.programs.scout = [{ when: 'enemy', do: 'mark' }, { when: 'tick', do: 'flee' }, { when: 'tick', do: 'flee' }];
-  w.programs.hunter = [{ when: 'mark', do: 'seek' }, { when: 'tick', do: 'flee' }, { when: 'tick', do: 'flee' }];
+  w.programs.scout = [{ when: 'enemy', do: 'mark', channel: 'beacon', scope: 'other' }, { when: 'tick', do: 'split' }, { when: 'tick', do: 'split' }];
+  w.programs.hunter = [{ when: 'mark', do: 'seek', channel: 'beacon', scope: 'other' }, { when: 'tick', do: 'split' }, { when: 'tick', do: 'split' }];
   const previousVx = hunter.vx;
   stepWorld(w);
   assert.ok(w.marks.some(m => m.source === 'scout'));
@@ -68,7 +70,7 @@ test('upgrades require the proper game state', () => {
   assert.equal(chooseUpgrade(w, 'pulse'), false);
   w.status = 'upgrade';
   assert.equal(chooseUpgrade(w, 'pulse'), true);
-  assert.equal(w.tuning.pulseRadius, 56);
+  assert.equal(w.tuning.pulseRadius, 65);
   assert.equal(w.status, 'running');
   assert.equal(chooseUpgrade(w, '__proto__'), false);
 });

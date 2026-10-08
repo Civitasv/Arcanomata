@@ -1,5 +1,6 @@
 import { createWorld, stepWorld, chooseUpgrade, UPGRADES, WORLD } from '../core/world.js';
-import { ACTIONS, SENSORS, LABELS, SPELL_KINDS, defaultPrograms, normalizePrograms } from '../core/program.js';
+import { ACTIONS, SENSORS, CHANNELS, SCOPES, LABELS, SPELL_KINDS, isCompatible, normalizeRule, defaultPrograms, normalizePrograms } from '../core/program.js';
+import { createReplay, recordTick, recordRuleEdit, recordUpgrade, replayRun } from '../core/replay.js';
 import { drawWorld } from './render.js';
 
 const byId = id => document.getElementById(id);
@@ -16,6 +17,8 @@ let previous = performance.now();
 let accumulator = 0;
 let lastUi = 0;
 let modalState = '';
+let tape = null;
+let avgFrameMs = 0;
 const FIXED_STEP = 1 / 30;
 
 function readSavedPrograms() {
@@ -71,16 +74,53 @@ function renderEditor() {
       for (const key of SENSORS) sensor.append(option(key, LABELS[key]));
       for (const key of ACTIONS) action.append(option(key, LABELS[key]));
       sensor.value = rule.when; action.value = rule.do;
-      const update = () => {
-        world.programs[kind][index] = { when: sensor.value, do: action.value };
-        savePrograms();
+      const meta = document.createElement('div');
+      meta.className = 'rule-meta';
+      const channelLabel = document.createElement('label');
+      channelLabel.textContent = '信号通道 ';
+      const channel = document.createElement('select');
+      channel.setAttribute('aria-label', LABELS[kind] + ' 规则 ' + (index + 1) + ' 信号通道');
+      for (const key of CHANNELS) channel.append(option(key, LABELS[key]));
+      channel.value = rule.channel;
+      channelLabel.append(channel);
+      const scopeLabel = document.createElement('label');
+      scopeLabel.textContent = '目标来源 ';
+      const scope = document.createElement('select');
+      scope.setAttribute('aria-label', LABELS[kind] + ' 规则 ' + (index + 1) + ' 目标来源');
+      for (const key of SCOPES) scope.append(option(key, LABELS[key]));
+      scope.value = rule.scope;
+      scopeLabel.append(scope);
+      meta.append(channelLabel, scopeLabel);
+      const updateVisible = () => {
+        const showsChannel = sensor.value === 'mark' || action.value === 'mark';
+        channelLabel.hidden = !showsChannel;
+        scopeLabel.hidden = !['mark', 'ally'].includes(sensor.value);
+        for (const opt of action.options) opt.disabled = !isCompatible(sensor.value, opt.value);
       };
-      sensor.addEventListener('change', update); action.addEventListener('change', update);
+      const update = (which) => {
+        if (!isCompatible(sensor.value, action.value)) {
+          if (which === 'action' && action.value === 'share') sensor.value = 'ally';
+          else action.value = sensor.value === 'tick' ? 'split' : 'seek';
+        }
+        const next = normalizeRule({
+          when: sensor.value, do: action.value, channel: channel.value, scope: scope.value
+        }, world.programs[kind][index]);
+        world.programs[kind][index] = next;
+        if (tape) recordRuleEdit(tape, kind, index, next);
+        updateVisible();
+        savePrograms();
+        updateUi(true);
+      };
+      sensor.addEventListener('change', () => update('sensor'));
+      action.addEventListener('change', () => update('action'));
+      channel.addEventListener('change', () => update('channel'));
+      scope.addEventListener('change', () => update('scope'));
       const arrow = document.createElement('span'); arrow.textContent = '→';
       arrow.className = 'rule-arrow';
       pair.append(sensor, arrow, action);
       line.append(marker, pair);
-      card.append(line);
+      card.append(line, meta);
+      updateVisible();
     });
     root.append(card);
   }
@@ -90,6 +130,7 @@ function resetRun(newSeed = false) {
   const program = normalizePrograms(world.programs);
   world = createWorld(seed);
   world.programs = program;
+  tape = createReplay(seed, program);
   selectedId = null;
   accumulator = 0;
   modalState = '';
@@ -115,15 +156,36 @@ function updateUi(force = false) {
   byId('crossSignals').textContent = world.crossSignals;
   byId('marksWritten').textContent = world.totalSignals;
   byId('pulseCount').textContent = world.pulses;
+  byId('energyShared').textContent = Math.floor(world.energyShared);
+  byId('frameTime').textContent = avgFrameMs.toFixed(1) + 'ms';
   byId('pauseBtn').textContent = world.status === 'paused' ? '继续 · P' : '暂停 · P';
   const selected = world.spells.find(s => s.id === selectedId);
   if (selected) {
     byId('inspector').textContent = LABELS[selected.kind] + ' #' + selected.id +
       ' · 能量 ' + Math.floor(selected.energy) + ' · 寿命 ' + Math.floor(selected.age) +
-      ' 秒 · 最近行为：' + selected.lastRule;
+      ' 秒 · 最近行为：' + selected.lastRule + ' · 目标 #' +
+      (selected.lastTargetId ?? '无');
   } else {
-    byId('inspector').textContent = '点击法术实体以查看感知和行为记录。法术会实时继承当前物种的程序。';
+    byId('inspector').textContent = '点击法术实体查看它的目标、能量和近期规则记录。';
   }
+  const feed = byId('traceFeed');
+  feed.replaceChildren();
+  const events = selected ? selected.trace : world.traces.slice(-6);
+  for (const item of [...events].reverse()) {
+    const div = document.createElement('div');
+    div.className = 'trace-event' + (item.cross ? ' trace-cross' : '');
+    const cause = item.when === 'mark' ? LABELS[item.channel] + '印记' : LABELS[item.when];
+    div.textContent = item.t.toFixed(1) + 's · #' + item.spellId + ' R' +
+      (item.ruleIndex + 1) + ' ' + cause + ' → ' + LABELS[item.action] +
+      ' · 目标 ' + (item.targetId ?? '无') +
+      ' · ΔE ' + item.deltaEnergy;
+    feed.append(div);
+  }
+  if (!events.length) feed.textContent = '尚无行为记录。';
+  byId('metrics').textContent = '峰值法术 ' + world.metrics.peakSpells +
+    ' / 敌人 ' + world.metrics.peakEnemies +
+    ' / 印记 ' + world.metrics.peakMarks +
+    ' · 承受伤害 ' + world.metrics.damageTaken;
   if (force || modalState !== world.status) {
     modalState = world.status;
     updateOverlay();
@@ -155,7 +217,10 @@ function updateOverlay() {
       const strong = document.createElement('strong'); strong.textContent = UPGRADES[key].name;
       const small = document.createElement('span'); small.textContent = UPGRADES[key].description;
       button.append(strong, small);
-      button.addEventListener('click', () => { chooseUpgrade(world, key); modalState = ''; updateUi(true); });
+      button.addEventListener('click', () => {
+        if (chooseUpgrade(world, key)) recordUpgrade(tape, key);
+        modalState = ''; updateUi(true);
+      });
       actions.append(button);
     }
   } else {
@@ -208,7 +273,49 @@ byId('pauseBtn').addEventListener('click', togglePause);
 byId('restartBtn').addEventListener('click', () => resetRun(false));
 byId('newSeedBtn').addEventListener('click', () => resetRun(true));
 byId('resetRulesBtn').addEventListener('click', () => {
-  world.programs = defaultPrograms(); savePrograms(); renderEditor();
+  world.programs = defaultPrograms();
+  for (const kind of SPELL_KINDS) for (let i = 0; i < 3; i++) {
+    recordRuleEdit(tape, kind, i, world.programs[kind][i]);
+  }
+  savePrograms(); renderEditor();
+});
+byId('exportReplayBtn').addEventListener('click', () => {
+  try {
+    const reconstructed = replayRun(tape);
+    const current = structuredClone(world);
+    if (current.status === 'paused') current.status = 'running';
+    if (JSON.stringify(reconstructed) !== JSON.stringify(current)) {
+      throw new Error('当前状态与录制事件不一致');
+    }
+    const blob = new Blob([JSON.stringify(tape)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url; link.download = 'arcanomata-' + seed + '.replay.json';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    byId('replayStatus').textContent = '回放验证通过 · 已导出';
+  } catch (error) {
+    byId('replayStatus').textContent = '回放验证失败：' + error.message;
+  }
+});
+byId('importReplayBtn').addEventListener('click', () => byId('importReplayFile').click());
+byId('importReplayFile').addEventListener('change', async event => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const candidate = JSON.parse(await file.text());
+    const reconstructed = replayRun(candidate);
+    world = reconstructed;
+    seed = candidate.seed >>> 0;
+    tape = candidate;
+    selectedId = null;
+    accumulator = 0;
+    savePrograms();
+    renderEditor(); updateUi(true);
+    byId('replayStatus').textContent = '已还原记录的最终演化状态';
+  } catch (error) {
+    byId('replayStatus').textContent = '导入失败：' + error.message;
+  } finally { event.target.value = ''; }
 });
 function inputDirection() {
   return {
@@ -222,14 +329,32 @@ function frame(now) {
   accumulator = Math.min(accumulator + Math.min((now - previous) / 1000, 0.1), 0.25);
   previous = now;
   const input = inputDirection();
+  const started = performance.now();
   while (accumulator >= FIXED_STEP) {
-    stepWorld(world, input, FIXED_STEP);
+    if (world.status === 'running') {
+      recordTick(tape, input);
+      stepWorld(world, input, FIXED_STEP);
+    }
     accumulator -= FIXED_STEP;
   }
   drawWorld(ctx, world, selectedId);
+  avgFrameMs = avgFrameMs * 0.9 + (performance.now() - started) * 0.1;
   if (now - lastUi > 125) { updateUi(); lastUi = now; }
   requestAnimationFrame(frame);
 }
 renderEditor();
 resetRun(false);
+if (params.get('smoke') === '1') {
+  window.__ARCA_TEST__ = {
+    getWorld: () => world,
+    getTape: () => tape,
+    step: (input = { dx: 0, dy: 0 }) => {
+      if (world.status === 'running') { recordTick(tape, input); stepWorld(world, input, FIXED_STEP); }
+      updateUi(true);
+    }
+  };
+  import('../../tests/browser-acceptance.js').catch(error => {
+    document.body.dataset.smoke = 'FAIL ' + error.message;
+  });
+}
 requestAnimationFrame(frame);

@@ -20,3 +20,8 @@ core -X-> DOM / Canvas / browser storage / desktop SDK
 ```
 
 The core deliberately exports plain JavaScript data and functions so a platform adapter can call it with a fixed `dt`.
+
+| Typed channels and rule compatibility | `src/core/program.js` | `tests/composition.test.js` |
+| Deterministic replay recording and verification | `src/core/replay.js` | `tests/composition.test.js` |
+| Behavior traces, energy exchange and telemetry | `src/core/world.js` + `src/web/main.js` | `tests/composition.test.js` + browser acceptance |
+| Browser acceptance / screenshots | `scripts/browser-smoke.mjs`, `tests/browser-acceptance.js` | GitHub Actions browser job |

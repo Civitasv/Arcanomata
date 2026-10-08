@@ -50,12 +50,16 @@
             <div class="telemetry"><span>跨种族信号响应</span><strong id="crossSignals">0</strong></div>
             <div class="telemetry"><span>留下的魔法印记</span><strong id="marksWritten">0</strong></div>
             <div class="telemetry"><span>已释放脉冲</span><strong id="pulseCount">0</strong></div>
+            <div class="telemetry"><span>同伴能量转移</span><strong id="energyShared">0</strong></div>
+            <div class="telemetry"><span>渲染 + 模拟耗时</span><strong id="frameTime">—</strong></div>
+            <p id="metrics" class="metrics">法术 / 敌人 / 印记峰值</p>
             <p>不同法术没有共享脚本；它们通过战场上会消散的印记交换信息。</p>
           </div>
           <div class="info-panel">
             <div class="eyebrow">AGENT INSPECTOR</div>
             <h3>法术显微镜</h3>
             <p id="inspector">在战场上点击一个法术实体，观察它的能量和最近执行的规则。</p>
+            <div id="traceFeed" class="trace-feed" aria-live="off">尚无行为记录。</div>
           </div>
         </div>
       </section>
@@ -69,6 +73,12 @@
         <div class="editor-footer">
           <button class="ghost-button" id="resetRulesBtn" type="button">恢复默认法则</button>
           <span>每种法术可独立编写 3 条规则</span>
+        </div>
+        <div class="replay-controls">
+          <button class="ghost-button" id="exportReplayBtn" type="button">导出并验证回放</button>
+          <button class="ghost-button" id="importReplayBtn" type="button">导入回放</button>
+          <input id="importReplayFile" type="file" accept=".json,application/json" hidden>
+          <span id="replayStatus">记录包含种子、逐帧输入、规则修改和升级。</span>
         </div>
         <div class="concept-note">
           <span class="eyebrow">CROSS-SPELL PROTOCOL</span>

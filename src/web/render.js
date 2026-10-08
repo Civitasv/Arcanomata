@@ -52,10 +52,13 @@ export function drawWorld(ctx, world, selectedId = null) {
   for (const mark of world.marks) {
     const color = mark.source === 'scout' ? scoutColor : hunterColor;
     glow(ctx, mark.x, mark.y, 26, color, Math.min(0.16, mark.ttl * 0.05));
-    ctx.strokeStyle = color;
+    ctx.strokeStyle = mark.channel === 'danger' ? '#ff8494' :
+      mark.channel === 'supply' ? '#f5cb83' : color;
     ctx.globalAlpha = Math.min(0.55, mark.ttl * 0.18);
     ctx.lineWidth = 1;
-    polygon(ctx, mark.x, mark.y, 4, 6, Math.PI / 4);
+    polygon(ctx, mark.x, mark.y,
+      mark.channel === 'danger' ? 3 : mark.channel === 'supply' ? 6 : 4,
+      6, Math.PI / 4);
     ctx.stroke(); ctx.globalAlpha = 1;
   }
 
@@ -83,12 +86,17 @@ export function drawWorld(ctx, world, selectedId = null) {
       ctx.strokeStyle = '#fff1bd'; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = '#fff1bd'; ctx.font = '10px monospace';
       ctx.fillText(Math.floor(spell.energy) + ' E', spell.x + 18, spell.y - 12);
-      const otherMark = world.marks.find(m => m.source !== spell.kind &&
-        (m.x - spell.x) ** 2 + (m.y - spell.y) ** 2 < 155 ** 2);
-      if (otherMark) {
+      const last = spell.trace.at(-1);
+      const target = last && (
+        last.targetType === 'mark' ? world.marks.find(m => m.id === last.targetId) :
+        last.targetType === 'spell' ? world.spells.find(s => s.id === last.targetId) :
+        world.enemies.find(e => e.id === last.targetId)
+      );
+      if (target) {
         ctx.save(); ctx.setLineDash([3, 6]); ctx.beginPath();
-        ctx.moveTo(spell.x, spell.y); ctx.lineTo(otherMark.x, otherMark.y);
-        ctx.strokeStyle = '#fff1bd'; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
+        ctx.moveTo(spell.x, spell.y); ctx.lineTo(target.x, target.y);
+        ctx.strokeStyle = last.cross ? '#85ddc0' : '#fff1bd';
+        ctx.lineWidth = 1.5; ctx.stroke(); ctx.restore();
       }
     }
   }

@@ -28,10 +28,39 @@ jobs:
           path: dist/
           if-no-files-found: error
 
+  browser:
+    name: Chromium desktop and mobile smoke
+    needs: [validate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify Chrome is installed
+        run: |
+          if command -v google-chrome >/dev/null 2>&1; then
+            echo "CHROME_BIN=$(command -v google-chrome)" >> "$GITHUB_ENV"
+          elif command -v chromium >/dev/null 2>&1; then
+            echo "CHROME_BIN=$(command -v chromium)" >> "$GITHUB_ENV"
+          else
+            echo "Chrome/Chromium not installed" >&2
+            exit 1
+          fi
+      - name: Build and smoke-test both viewports
+        run: npm run build && npm run test:browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: arcanomata-browser-screenshots
+          path: artifacts/
+          if-no-files-found: ignore
+
   auto-merge:
     name: Auto squash-merge eligible green PR
-    if: github.event_name == 'pull_request' && needs.validate.result == 'success'
-    needs: [validate]
+    if: github.event_name == 'pull_request' && needs.validate.result == 'success' && needs.browser.result == 'success'
+    needs: [validate, browser]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
