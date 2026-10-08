@@ -6,9 +6,11 @@ This project adapts the **principles** of [Orven](https://github.com/Civitasv/or
 2. **PLAN**: Locate contracts using `Code.md`. Decide whether this changes core semantics, UI, or packaging. Define the smallest possible test.
 3. **IMPLEMENT**: Modify the relevant layer; pure model first, adapters second. Keep tests alongside rule changes.
 4. **EXECUTE**: Run `npm run check`. For game-feel changes, play manually in browser at desktop and a narrow viewport, including at least one edited cross-spell program.
-5. **RECORD EVIDENCE**: Copy exact command result to PR and describe actual observed gameplay (or mark `PENDING`). A simulation unit test cannot prove fun.
-6. **REVIEW**: Inspect diff against criteria, architecture boundaries, safety limits, likely regressions and player comprehension. Distinguish self-review from independent review.
-7. **GATE**: Merge only with passing required checks and no blockers. If tests could not be run, say so rather than asserting green.
+5. **RECORD EVIDENCE**: Copy exact command result to PR and describe actual observed gameplay. For unrun manual checks, explicitly mark `PENDING`, never falsely mark them green.
+6. **REVIEW**: Inspect diff against criteria, architecture boundaries, safety limits, likely regressions and player comprehension. Distinguish self-review from independent review. Mark any review finding that must block merging explicitly.
+7. **AUTO-MERGE GATE**: For an owner-authored same-repo PR targeting `master`, passing required CI, no conflicting or requested-changes review, and a non-draft mergeable head automatically triggers squash-merge; do not ask for approval again. CI is the default gate; manual playtests marked nonblocking can be follow-ups. Explicit blocking acceptance criteria remain blocking. If GitHub permissions, branch policies or a stale SHA prevent merge, leave PR open and report the blocker.
+
+The automatic gate lives in `.github/workflows/ci.yml`, in a separate post-validation job with write permission but **without checkout**. External/fork PRs do not auto-merge. When adding new CI validation jobs, also expand the `auto-merge.needs` list.
 
 Recommended change slices: F01 platform skeleton + interactive vertical slice; F02 debuggability; F03 replay/seed sharing; F04 combat & content depth; F05 browser playtests; F06 desktop shell.
 

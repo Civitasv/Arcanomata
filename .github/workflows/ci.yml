@@ -27,3 +27,77 @@ jobs:
           name: arcanomata-web
           path: dist/
           if-no-files-found: error
+
+  auto-merge:
+    name: Auto squash-merge eligible green PR
+    if: github.event_name == 'pull_request' && needs.validate.result == 'success'
+    needs: [validate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # No checkout: PR contents must never be executed with this job's write token.
+      - name: Check eligible PR, reviews and validated SHA; squash-merge
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const payloadPR = context.payload.pull_request;
+            if (!payloadPR) {
+              core.notice('Not a pull_request event; skipping auto-merge.');
+              return;
+            }
+            const pull_number = payloadPR.number;
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
+            const allowed =
+              pr.state === 'open' &&
+              !pr.draft &&
+              pr.base.ref === 'master' &&
+              pr.head.repo?.full_name === `${owner}/${repo}` &&
+              pr.user?.login === owner;
+            if (!allowed) {
+              core.notice('Not an owner-authored same-repo, non-draft PR targeting master; leaving open.');
+              return;
+            }
+            if (pr.head.sha !== payloadPR.head.sha) {
+              core.notice('PR head changed since this CI run; wait for fresh validation.');
+              return;
+            }
+
+            // Track each reviewer's latest actionable review. A later APPROVED
+            // or DISMISSED review supersedes an earlier CHANGES_REQUESTED review.
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner, repo, pull_number, per_page: 100
+            });
+            const latest = new Map();
+            for (const review of reviews) {
+              if (['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'].includes(review.state)) {
+                latest.set(review.user.login, review.state);
+              }
+            }
+            if ([...latest.values()].includes('CHANGES_REQUESTED')) {
+              core.notice('Blocking changes-requested review exists; not merging.');
+              return;
+            }
+
+            if (pr.mergeable === false) {
+              core.notice('PR is not mergeable (conflict or GitHub restrictions); not merging.');
+              return;
+            }
+            try {
+              const { data } = await github.rest.pulls.merge({
+                owner, repo, pull_number,
+                sha: pr.head.sha,
+                merge_method: 'squash'
+              });
+              if (!data.merged) {
+                core.setFailed('GitHub returned merged=false: ' + (data.message || 'unknown reason'));
+                return;
+              }
+              core.notice(`Auto-merged PR #${pull_number} to master: ${data.sha}`);
+            } catch (error) {
+              core.setFailed('Automatic merge blocked by GitHub or changed PR state: ' + error.message);
+            }
