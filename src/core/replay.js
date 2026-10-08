@@ -8,7 +8,7 @@ export function createReplay(seed, programs) {
     programs: normalizePrograms(programs), inputs: [], events: [] };
 }
 export function recordTick(tape, input) {
-  const axis = v => v > 0 ? 1 : v < 0 ? -1 : 0;
+  const axis = v => Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0;
   tape.inputs.push([axis(input.dx), axis(input.dy)]);
 }
 export function recordRuleEdit(tape, kind, index, rule) {
@@ -25,7 +25,7 @@ export function recordUpgrade(tape, key) {
 export function replayRun(tape) {
   if (!tape || tape.version !== REPLAY_VERSION || !Number.isInteger(tape.seed) ||
       !Array.isArray(tape.inputs) || !Array.isArray(tape.events) ||
-      tape.inputs.length > 10000 || tape.events.length > 2500) {
+      tape.inputs.length > 6000 || tape.events.length > 1500) {
     throw new Error('Invalid replay header or size');
   }
   const w = createWorld(tape.seed);
@@ -46,7 +46,7 @@ export function replayRun(tape) {
     if (tick === tape.inputs.length) break;
     if (w.status !== 'running') throw new Error('Replay tick while not running');
     const item = tape.inputs[tick];
-    if (!Array.isArray(item) || item.length !== 2 || !item.every(v => Number.isInteger(v) && v >= -1 && v <= 1)) {
+    if (!Array.isArray(item) || item.length !== 2 || !item.every(v => Number.isFinite(v) && v >= -1 && v <= 1)) {
       throw new Error('Invalid replay input');
     }
     stepWorld(w, { dx: item[0], dy: item[1] }, STEP_SECONDS);
