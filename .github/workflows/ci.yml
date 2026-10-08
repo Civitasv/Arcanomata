@@ -21,6 +21,14 @@ jobs:
           node-version: '22'
       - name: Validate
         run: npm run check
+      - name: Measure deterministic three-minute runs
+        run: npm run benchmark
+      - name: Upload performance benchmark
+        uses: actions/upload-artifact@v4
+        with:
+          name: arcanomata-three-minute-benchmark
+          path: artifacts/three-minute-benchmark.json
+          if-no-files-found: error
       - name: Upload deployable web build
         uses: actions/upload-artifact@v4
         with:
