@@ -33,3 +33,7 @@ Start with [AGENTS.md](AGENTS.md), [Code.md](Code.md), [product spec](docs/PRODU
 ## Status
 
 This is a narrow vertical slice, not a production game. Cross-spell communication is implemented through sensed marks. Spatial flocking, persistent spell evolution, save files, audio, automated browser playtests, and PC packaging are later milestones.
+
+## Web preview deployment (optional)
+
+The CI run attaches a `arcanomata-web` downloadable static bundle to the PR. After merging into `master`, for an online playable URL: enable **Settings → Pages → Build and deployment: GitHub Actions**, then manually run **Actions → Deploy Web Preview → Run workflow** on `master`. The deploy workflow publishes the same `dist/` bundle to GitHub Pages, normally at `https://civitasv.github.io/Arcanomata/`. This preview is not active until Pages is configured and a deploy succeeds.

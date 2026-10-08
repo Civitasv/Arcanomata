@@ -11,3 +11,7 @@ This project adapts the **principles** of [Orven](https://github.com/Civitasv/or
 7. **GATE**: Merge only with passing required checks and no blockers. If tests could not be run, say so rather than asserting green.
 
 Recommended change slices: F01 platform skeleton + interactive vertical slice; F02 debuggability; F03 replay/seed sharing; F04 combat & content depth; F05 browser playtests; F06 desktop shell.
+
+## Optional website acceptance
+
+CI always builds a downloadable site artifact. Once Pages is enabled on the repository, `Deploy Web Preview` can be triggered manually from Actions on `master`. Do not state that the website is live until the deployment run succeeds. Run keyboard, touch controls, edit-two-program, XP-upgrade, agent-inspector, death, and retry checks in a real browser.
